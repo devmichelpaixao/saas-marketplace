@@ -1,0 +1,127 @@
+
+model Company {
+  id                String   @id @default(uuid())
+  tenantId          String
+  tenant            tenants  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  cnpj              String   @unique
+  razaoSocial       String
+  nomeFantasia      String?
+  inscricaoEstadual String?
+  inscricaoMunicipal String?
+  
+  cep               String
+  logradouro        String
+  numero            String
+  complemento       String?
+  bairro            String
+  cidade            String
+  uf                String
+  codigoMunicipio   String
+  
+  telefone          String?
+  email             String
+  
+  certificadoA1     String?
+  senhaCertificado  String?
+  ambiente          String   @default("homologacao")
+  serieNFe          String   @default("1")
+  proximoNumero     Int      @default(1)
+  
+  apiProvider       String?
+  apiToken          String?
+  
+  invoices          Invoice[]
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@map("companies")
+}
+
+model Invoice {
+  id                String   @id @default(uuid())
+  tenantId          String
+  companyId         String
+  company           Company  @relation(fields: [companyId], references: [id])
+  orderId           String?
+  order             orders?  @relation(fields: [orderId], references: [id])
+  
+  numero            Int
+  serie             String
+  chaveAcesso       String?  @unique
+  protocolo         String?
+  
+  clienteCpfCnpj    String
+  clienteNome       String
+  clienteEmail      String?
+  clienteTelefone   String?
+  
+  clienteCep        String?
+  clienteLogradouro String?
+  clienteNumero     String?
+  clienteBairro     String?
+  clienteCidade     String?
+  clienteUf         String?
+  
+  valorProdutos     Float
+  valorFrete        Float    @default(0)
+  valorDesconto     Float    @default(0)
+  valorTotal        Float
+  
+  valorICMS         Float    @default(0)
+  valorIPI          Float    @default(0)
+  valorPIS          Float    @default(0)
+  valorCOFINS       Float    @default(0)
+  
+  items             InvoiceItem[]
+  
+  status            String   @default("PENDENTE")
+  statusMotivo      String?
+  
+  xmlEnvio          String?  @db.Text
+  xmlRetorno        String?  @db.Text
+  xmlCancelamento   String?  @db.Text
+  
+  urlPDF            String?
+  urlXML            String?
+  urlDanfe          String?
+  
+  dataEmissao       DateTime @default(now())
+  dataAutorizacao   DateTime?
+  dataCancelamento  DateTime?
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@index([tenantId])
+  @@index([companyId])
+  @@index([status])
+  @@index([chaveAcesso])
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id                String   @id @default(uuid())
+  invoiceId         String
+  invoice           Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  
+  productId         String?
+  codigoProduto     String
+  descricao         String
+  ncm               String   @default("00000000")
+  cfop              String   @default("5102")
+  unidade           String   @default("UN")
+  
+  quantidade        Float
+  valorUnitario     Float
+  valorTotal        Float
+  valorDesconto     Float    @default(0)
+  
+  valorICMS         Float    @default(0)
+  valorIPI          Float    @default(0)
+  
+  createdAt         DateTime @default(now())
+  
+  @@map("invoice_items")
+}

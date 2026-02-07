@@ -1,0 +1,18 @@
+# Dependências
+node_modules/
+
+# Build
+dist/
+
+# Ambiente
+.env
+
+# Logs
+logs/
+*.log
+
+# Uploads
+uploads/
+
+# Cache
+.cache/

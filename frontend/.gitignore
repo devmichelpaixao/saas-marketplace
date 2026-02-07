@@ -1,0 +1,17 @@
+# Dependências
+node_modules/
+
+# Build
+dist/
+build/
+
+# Ambiente
+.env
+.env.local
+
+# Cache
+.vite/
+.cache/
+
+# Logs
+*.log

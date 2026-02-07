@@ -1,0 +1,652 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model categories {
+  id               String       @id
+  name             String
+  description      String?
+  parentId         String?
+  active           Boolean      @default(true)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime
+  tenantId         String
+  categories       categories?  @relation("categoriesTocategories", fields: [parentId], references: [id])
+  other_categories categories[] @relation("categoriesTocategories")
+  tenants          tenants      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  products         products[]
+}
+
+model departments {
+  id                                                          String             @id
+  name                                                        String
+  description                                                 String?
+  order                                                       Int                @default(0)
+  color                                                       String?
+  active                                                      Boolean            @default(true)
+  createdAt                                                   DateTime           @default(now())
+  updatedAt                                                   DateTime
+  tenantId                                                    String
+  tenants                                                     tenants            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  orders                                                      orders[]
+  products                                                    products[]
+  tasks                                                       tasks[]
+  user_departments                                            user_departments[]
+  workflow_steps_workflow_steps_fromDepartmentIdTodepartments workflow_steps[]   @relation("workflow_steps_fromDepartmentIdTodepartments")
+  workflow_steps_workflow_steps_toDepartmentIdTodepartments   workflow_steps[]   @relation("workflow_steps_toDepartmentIdTodepartments")
+}
+
+model listings {
+  id                       String                   @id
+  productId                String
+  integrationId            String
+  externalId               String
+  title                    String
+  description              String
+  price                    Decimal                  @db.Decimal(10, 2)
+  stock                    Int                      @default(0)
+  status                   ListingStatus            @default(ACTIVE)
+  url                      String?
+  lastSyncAt               DateTime?
+  createdAt                DateTime                 @default(now())
+  updatedAt                DateTime
+  marketplace_integrations marketplace_integrations @relation(fields: [integrationId], references: [id])
+  products                 products                 @relation(fields: [productId], references: [id])
+  order_items              order_items[]
+  questions                questions[]
+
+  @@unique([integrationId, externalId])
+}
+
+model marketplace_integrations {
+  id           String          @id
+  marketplace  MarketplaceType
+  accessToken  String?
+  refreshToken String?
+  expiresAt    DateTime?
+  shopId       String?
+  active       Boolean         @default(true)
+  config       Json?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime
+  tenantId     String
+  listings     listings[]
+  tenants      tenants         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  orders       orders[]
+
+  @@unique([tenantId, marketplace])
+}
+
+model messages {
+  id          String        @id
+  orderId     String
+  userId      String?
+  externalId  String?
+  sender      MessageSender
+  senderName  String
+  content     String
+  attachments Json?
+  read        Boolean       @default(false)
+  readAt      DateTime?
+  createdAt   DateTime      @default(now())
+  orders      orders        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  users       users?        @relation(fields: [userId], references: [id])
+}
+
+model order_items {
+  id         String    @id
+  orderId    String
+  productId  String
+  listingId  String?
+  quantity   Int
+  unitPrice  Decimal   @db.Decimal(10, 2)
+  totalPrice Decimal   @db.Decimal(10, 2)
+  createdAt  DateTime  @default(now())
+  listings   listings? @relation(fields: [listingId], references: [id])
+  orders     orders    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  products   products  @relation(fields: [productId], references: [id])
+}
+
+model order_status_history {
+  id           String       @id
+  orderId      String
+  fromStatus   OrderStatus?
+  toStatus     OrderStatus
+  departmentId String?
+  notes        String?
+  createdAt    DateTime     @default(now())
+  orders       orders       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model orders {
+  id                              String                    @id
+  integrationId                   String?
+  externalId                      String?
+  orderNumber                     String
+  barcode                         String?
+  status                          OrderStatus               @default(PENDING)
+  totalAmount                     Decimal                   @db.Decimal(10, 2)
+  shippingAmount                  Decimal                   @default(0) @db.Decimal(10, 2)
+  discountAmount                  Decimal                   @default(0) @db.Decimal(10, 2)
+  shippingDeadline                DateTime?
+  shippingMethod                  String?
+  trackingCode                    String?
+  currentDepartmentId             String?
+  customerName                    String
+  customerEmail                   String?
+  customerPhone                   String?
+  shippingAddress                 Json?
+  notes                           String?
+  paymentMethod                   String?
+  paidAt                          DateTime?
+  shippedAt                       DateTime?
+  deliveredAt                     DateTime?
+  createdById                     String?
+  updatedById                     String?
+  createdAt                       DateTime                  @default(now())
+  updatedAt                       DateTime
+  tenantId                        String
+  messages                        messages[]
+  order_items                     order_items[]
+  order_status_history            order_status_history[]
+  users_orders_createdByIdTousers users?                    @relation("orders_createdByIdTousers", fields: [createdById], references: [id])
+  departments                     departments?              @relation(fields: [currentDepartmentId], references: [id])
+  marketplace_integrations        marketplace_integrations? @relation(fields: [integrationId], references: [id])
+  tenants                         tenants                   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  users_orders_updatedByIdTousers users?                    @relation("orders_updatedByIdTousers", fields: [updatedById], references: [id])
+  shipping_labels                 shipping_labels[]
+  tasks                           tasks[]
+
+  @@unique([tenantId, barcode])
+  @@unique([tenantId, orderNumber])
+}
+
+model payments {
+  id             String        @id
+  subscriptionId String
+  amount         Decimal       @db.Decimal(10, 2)
+  status         PaymentStatus @default(PENDING)
+  method         String?
+  externalId     String?
+  paidAt         DateTime?
+  dueDate        DateTime
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime
+  subscriptions  subscriptions @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+}
+
+model plans {
+  id            String          @id
+  name          String
+  description   String?
+  price         Decimal         @db.Decimal(10, 2)
+  billingCycle  String
+  maxUsers      Int             @default(5)
+  maxProducts   Int             @default(100)
+  maxOrders     Int             @default(1000)
+  features      Json
+  active        Boolean         @default(true)
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime
+  subscriptions subscriptions[]
+}
+
+model product_groups {
+  id          String     @id
+  name        String
+  description String?
+  active      Boolean    @default(true)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime
+  tenantId    String
+  tenants     tenants    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  products    products[]
+}
+
+model product_images {
+  id        String   @id
+  productId String
+  url       String
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  products  products @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+model products {
+  id             String           @id
+  sku            String
+  name           String
+  description    String
+  cost           Decimal          @default(0) @db.Decimal(10, 2)
+  price          Decimal          @db.Decimal(10, 2)
+  stock          Int              @default(0)
+  physicalStock  Int              @default(0)
+  minStock       Int              @default(0)
+  weight         Decimal?         @db.Decimal(10, 3)
+  height         Decimal?         @db.Decimal(10, 2)
+  width          Decimal?         @db.Decimal(10, 2)
+  length         Decimal?         @db.Decimal(10, 2)
+  barcode        String?
+  active         Boolean          @default(true)
+  categoryId     String?
+  productGroupId String?
+  departmentId   String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime
+  tenantId       String
+  listings       listings[]
+  order_items    order_items[]
+  product_images product_images[]
+  categories     categories?      @relation(fields: [categoryId], references: [id])
+  departments    departments?     @relation(fields: [departmentId], references: [id])
+  product_groups product_groups?  @relation(fields: [productGroupId], references: [id])
+  tenants        tenants          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, barcode])
+  @@unique([tenantId, sku])
+}
+
+model questions {
+  id           String         @id
+  listingId    String
+  externalId   String?
+  customerName String
+  question     String
+  answer       String?
+  status       QuestionStatus @default(PENDING)
+  answeredAt   DateTime?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime
+  listings     listings       @relation(fields: [listingId], references: [id])
+}
+
+model shipping_labels {
+  id           String    @id
+  orderId      String
+  labelUrl     String?
+  trackingCode String?
+  carrier      String?
+  printed      Boolean   @default(false)
+  printedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  orders       orders    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model subscriptions {
+  id                 String             @id
+  tenantId           String             @unique
+  planId             String
+  status             SubscriptionStatus @default(TRIAL)
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  cancelAtPeriodEnd  Boolean            @default(false)
+  canceledAt         DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime
+  payments           payments[]
+  plans              plans              @relation(fields: [planId], references: [id])
+  tenants            tenants            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model task_assignments {
+  id        String   @id
+  taskId    String
+  userId    String
+  createdAt DateTime @default(now())
+  tasks     tasks    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  users     users    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, userId])
+}
+
+model tasks {
+  id               String             @id
+  orderId          String?
+  departmentId     String?
+  title            String
+  description      String?
+  dueDate          DateTime
+  priority         TaskPriority       @default(MEDIUM)
+  status           TaskStatus         @default(PENDING)
+  completedAt      DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime
+  tenantId         String
+  task_assignments task_assignments[]
+  departments      departments?       @relation(fields: [departmentId], references: [id])
+  orders           orders?            @relation(fields: [orderId], references: [id])
+  tenants          tenants            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model tenants {
+  id                       String                     @id
+  name                     String
+  subdomain                String                     @unique
+  domain                   String?
+  logo                     String?
+  active                   Boolean                    @default(true)
+  trialEndsAt              DateTime?
+  createdAt                DateTime                   @default(now())
+  updatedAt                DateTime
+  auditLogs                AuditLog[]
+  categories               categories[]
+  departments              departments[]
+  marketplace_integrations marketplace_integrations[]
+  orders                   orders[]
+  product_groups           product_groups[]
+  products                 products[]
+  subscriptions            subscriptions?
+  tasks                    tasks[]
+  transactions             transactions[]
+  users                    users[]
+}
+
+model transactions {
+  id            String          @id
+  type          TransactionType
+  category      String
+  description   String
+  amount        Decimal         @db.Decimal(10, 2)
+  date          DateTime
+  paymentMethod String?
+  reference     String?
+  notes         String?
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime
+  tenantId      String
+  tenants       tenants         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+}
+
+model user_departments {
+  id           String      @id
+  userId       String
+  departmentId String
+  createdAt    DateTime    @default(now())
+  departments  departments @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  users        users       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, departmentId])
+}
+
+model users {
+  id                               String             @id
+  email                            String
+  password                         String
+  name                             String
+  role                             UserRole           @default(OPERATOR)
+  active                           Boolean            @default(true)
+  createdAt                        DateTime           @default(now())
+  updatedAt                        DateTime
+  tenantId                         String
+  auditLogs                        AuditLog[]
+  messages                         messages[]
+  orders_orders_createdByIdTousers orders[]           @relation("orders_createdByIdTousers")
+  orders_orders_updatedByIdTousers orders[]           @relation("orders_updatedByIdTousers")
+  task_assignments                 task_assignments[]
+  user_departments                 user_departments[]
+  tenants                          tenants            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, email])
+}
+
+model workflow_steps {
+  id                                                       String      @id
+  fromDepartmentId                                         String
+  toDepartmentId                                           String
+  order                                                    Int         @default(0)
+  active                                                   Boolean     @default(true)
+  createdAt                                                DateTime    @default(now())
+  updatedAt                                                DateTime
+  departments_workflow_steps_fromDepartmentIdTodepartments departments @relation("workflow_steps_fromDepartmentIdTodepartments", fields: [fromDepartmentId], references: [id])
+  departments_workflow_steps_toDepartmentIdTodepartments   departments @relation("workflow_steps_toDepartmentIdTodepartments", fields: [toDepartmentId], references: [id])
+}
+
+enum ListingStatus {
+  ACTIVE
+  PAUSED
+  CLOSED
+  INACTIVE
+}
+
+enum MarketplaceType {
+  MERCADO_LIVRE
+  SHOPEE
+  AMAZON
+  MAGALU
+  OTHER
+}
+
+enum MessageSender {
+  CUSTOMER
+  SELLER
+  SYSTEM
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  IN_PRODUCTION
+  READY_TO_SHIP
+  SHIPPED
+  DELIVERED
+  CANCELLED
+  RETURNED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+enum QuestionStatus {
+  PENDING
+  ANSWERED
+  ARCHIVED
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  EXPIRED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum TransactionType {
+  REVENUE
+  EXPENSE
+  INVESTMENT
+}
+
+enum UserRole {
+  ADMIN
+  MANAGER
+  OPERATOR
+  VIEWER
+  SUPER_ADMIN
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  tenantId    String
+  userId      String?
+  action      String
+  entity      String
+  entityId    String?
+  changes     Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  tenant      tenants  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user        users?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([entity])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+/ /   P r i s m a   S c h e m a   -   A d i c i o n a r   a o   s c h e m a . p r i s m a   e x i s t e n t e  
+  
+ m o d e l   C o m p a n y   {  
+     i d                                 S t r i n g       @ i d   @ d e f a u l t ( u u i d ( ) )  
+     t e n a n t I d                     S t r i n g  
+     t e n a n t                         T e n a n t       @ r e l a t i o n ( f i e l d s :   [ t e n a n t I d ] ,   r e f e r e n c e s :   [ i d ] ,   o n D e l e t e :   C a s c a d e )  
+      
+     / /   D a d o s   d a   E m p r e s a  
+     c n p j                             S t r i n g       @ u n i q u e  
+     r a z a o S o c i a l               S t r i n g  
+     n o m e F a n t a s i a             S t r i n g ?  
+     i n s c r i c a o E s t a d u a l   S t r i n g ?  
+     i n s c r i c a o M u n i c i p a l   S t r i n g ?  
+      
+     / /   E n d e r e Ã § o  
+     c e p                               S t r i n g  
+     l o g r a d o u r o                 S t r i n g  
+     n u m e r o                         S t r i n g  
+     c o m p l e m e n t o               S t r i n g ?  
+     b a i r r o                         S t r i n g  
+     c i d a d e                         S t r i n g  
+     u f                                 S t r i n g  
+     c o d i g o M u n i c i p i o       S t r i n g  
+      
+     / /   C o n t a t o  
+     t e l e f o n e                     S t r i n g ?  
+     e m a i l                           S t r i n g  
+      
+     / /   C o n f i g u r a Ã § Ã µ e s   N F - e  
+     c e r t i f i c a d o A 1           S t r i n g ?     / /   B a s e 6 4   d o   c e r t i f i c a d o  
+     s e n h a C e r t i f i c a d o     S t r i n g ?     / /   C r i p t o g r a f a d o  
+     a m b i e n t e                     S t r i n g       @ d e f a u l t ( " h o m o l o g a c a o " )   / /   h o m o l o g a c a o   o u   p r o d u c a o  
+     s e r i e N F e                     S t r i n g       @ d e f a u l t ( " 1 " )  
+     p r o x i m o N u m e r o           I n t             @ d e f a u l t ( 1 )  
+      
+     / /   I n t e g r a Ã § Ã £ o   A P I  
+     a p i P r o v i d e r               S t r i n g ?     / /   f o c u s n f e ,   e n o t a s ,   e t c  
+     a p i T o k e n                     S t r i n g ?  
+      
+     i n v o i c e s                     I n v o i c e [ ]  
+      
+     c r e a t e d A t                   D a t e T i m e   @ d e f a u l t ( n o w ( ) )  
+     u p d a t e d A t                   D a t e T i m e   @ u p d a t e d A t  
+ }  
+  
+ m o d e l   I n v o i c e   {  
+     i d                                 S t r i n g       @ i d   @ d e f a u l t ( u u i d ( ) )  
+     t e n a n t I d                     S t r i n g  
+     c o m p a n y I d                   S t r i n g  
+     c o m p a n y                       C o m p a n y     @ r e l a t i o n ( f i e l d s :   [ c o m p a n y I d ] ,   r e f e r e n c e s :   [ i d ] )  
+     o r d e r I d                       S t r i n g ?  
+     o r d e r                           O r d e r ?       @ r e l a t i o n ( f i e l d s :   [ o r d e r I d ] ,   r e f e r e n c e s :   [ i d ] )  
+      
+     / /   D a d o s   d a   N F - e  
+     n u m e r o                         I n t  
+     s e r i e                           S t r i n g  
+     c h a v e A c e s s o               S t r i n g ?     @ u n i q u e  
+     p r o t o c o l o                   S t r i n g ?  
+      
+     / /   C l i e n t e  
+     c l i e n t e C p f C n p j         S t r i n g  
+     c l i e n t e N o m e               S t r i n g  
+     c l i e n t e E m a i l             S t r i n g ?  
+     c l i e n t e T e l e f o n e       S t r i n g ?  
+      
+     / /   E n d e r e Ã § o   C l i e n t e  
+     c l i e n t e C e p                 S t r i n g ?  
+     c l i e n t e L o g r a d o u r o   S t r i n g ?  
+     c l i e n t e N u m e r o           S t r i n g ?  
+     c l i e n t e B a i r r o           S t r i n g ?  
+     c l i e n t e C i d a d e           S t r i n g ?  
+     c l i e n t e U f                   S t r i n g ?  
+      
+     / /   V a l o r e s  
+     v a l o r P r o d u t o s           F l o a t  
+     v a l o r F r e t e                 F l o a t         @ d e f a u l t ( 0 )  
+     v a l o r D e s c o n t o           F l o a t         @ d e f a u l t ( 0 )  
+     v a l o r T o t a l                 F l o a t  
+      
+     / /   I m p o s t o s  
+     v a l o r I C M S                   F l o a t         @ d e f a u l t ( 0 )  
+     v a l o r I P I                     F l o a t         @ d e f a u l t ( 0 )  
+     v a l o r P I S                     F l o a t         @ d e f a u l t ( 0 )  
+     v a l o r C O F I N S               F l o a t         @ d e f a u l t ( 0 )  
+      
+     / /   I t e m s  
+     i t e m s                           I n v o i c e I t e m [ ]  
+      
+     / /   S t a t u s  
+     s t a t u s                         S t r i n g       @ d e f a u l t ( " P E N D E N T E " )   / /   P E N D E N T E ,   A U T O R I Z A D A ,   C A N C E L A D A ,   E R R O  
+     s t a t u s M o t i v o             S t r i n g ?  
+      
+     / /   X M L s  
+     x m l E n v i o                     S t r i n g ?     @ d b . T e x t  
+     x m l R e t o r n o                 S t r i n g ?     @ d b . T e x t  
+     x m l C a n c e l a m e n t o       S t r i n g ?     @ d b . T e x t  
+      
+     / /   U R L s  
+     u r l P D F                         S t r i n g ?  
+     u r l X M L                         S t r i n g ?  
+     u r l D a n f e                     S t r i n g ?  
+      
+     / /   D a t a s  
+     d a t a E m i s s a o               D a t e T i m e   @ d e f a u l t ( n o w ( ) )  
+     d a t a A u t o r i z a c a o       D a t e T i m e ?  
+     d a t a C a n c e l a m e n t o     D a t e T i m e ?  
+      
+     c r e a t e d A t                   D a t e T i m e   @ d e f a u l t ( n o w ( ) )  
+     u p d a t e d A t                   D a t e T i m e   @ u p d a t e d A t  
+      
+     @ @ i n d e x ( [ t e n a n t I d ] )  
+     @ @ i n d e x ( [ c o m p a n y I d ] )  
+     @ @ i n d e x ( [ s t a t u s ] )  
+     @ @ i n d e x ( [ c h a v e A c e s s o ] )  
+ }  
+  
+ m o d e l   I n v o i c e I t e m   {  
+     i d                                 S t r i n g       @ i d   @ d e f a u l t ( u u i d ( ) )  
+     i n v o i c e I d                   S t r i n g  
+     i n v o i c e                       I n v o i c e     @ r e l a t i o n ( f i e l d s :   [ i n v o i c e I d ] ,   r e f e r e n c e s :   [ i d ] ,   o n D e l e t e :   C a s c a d e )  
+      
+     / /   P r o d u t o  
+     p r o d u c t I d                   S t r i n g ?  
+     c o d i g o P r o d u t o           S t r i n g  
+     d e s c r i c a o                   S t r i n g  
+     n c m                               S t r i n g       @ d e f a u l t ( " 0 0 0 0 0 0 0 0 " )  
+     c f o p                             S t r i n g       @ d e f a u l t ( " 5 1 0 2 " )  
+     u n i d a d e                       S t r i n g       @ d e f a u l t ( " U N " )  
+      
+     / /   Q u a n t i d a d e   e   V a l o r e s  
+     q u a n t i d a d e                 F l o a t  
+     v a l o r U n i t a r i o           F l o a t  
+     v a l o r T o t a l                 F l o a t  
+     v a l o r D e s c o n t o           F l o a t         @ d e f a u l t ( 0 )  
+      
+     / /   I m p o s t o s  
+     v a l o r I C M S                   F l o a t         @ d e f a u l t ( 0 )  
+     v a l o r I P I                     F l o a t         @ d e f a u l t ( 0 )  
+      
+     c r e a t e d A t                   D a t e T i m e   @ d e f a u l t ( n o w ( ) )  
+ }  
+ 

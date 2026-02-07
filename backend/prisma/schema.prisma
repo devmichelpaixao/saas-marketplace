@@ -1,0 +1,111 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model tenants {
+  id              String           @id @default(uuid())
+  name            String
+  subdomain       String           @unique
+  active          Boolean          @default(true)
+  trialEndsAt     DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  users           users[]
+  subscriptions   subscriptions?
+  audit_logs      audit_logs[]
+
+  @@map("tenants")
+}
+
+model plans {
+  id                String          @id @default(uuid())
+  name              String          @unique
+  description       String
+  price             Float
+  maxUsers          Int
+  maxProducts       Int
+  maxOrdersPerMonth Int
+  features          Json
+  active            Boolean         @default(true)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  subscriptions     subscriptions[]
+
+  @@map("plans")
+}
+
+model subscriptions {
+  id                 String   @id @default(uuid())
+  tenantId           String   @unique
+  planId             String
+  status             String   @default("TRIAL")
+  currentPeriodStart DateTime @default(now())
+  currentPeriodEnd   DateTime
+  cancelAt           DateTime?
+  canceledAt         DateTime?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  tenant             tenants  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plan               plans    @relation(fields: [planId], references: [id])
+
+  @@index([tenantId])
+  @@index([planId])
+  @@map("subscriptions")
+}
+
+model users {
+  id                  String               @id @default(uuid())
+  tenantId            String
+  email               String
+  password            String
+  name                String
+  role                String               @default("USER")
+  active              Boolean              @default(true)
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  tenant              tenants              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  audit_logs          audit_logs[]
+
+  @@unique([tenantId, email])
+  @@index([tenantId])
+  @@index([email])
+  @@map("users")
+}
+
+model departments {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  color       String   @default("#3b82f6")
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("departments")
+}
+
+model audit_logs {
+  id          String   @id @default(uuid())
+  tenantId    String
+  userId      String?
+  action      String
+  entity      String
+  entityId    String?
+  changes     Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+  tenant      tenants  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user        users?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([entity])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
